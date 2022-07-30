@@ -1,4 +1,5 @@
 import pandas as pd
+import altair as alt
 from sklearn.base import TransformerMixin
 
 class DataFrameImputer(TransformerMixin):
@@ -21,5 +22,45 @@ def save_df(df, filename):
     feather.write_feather(df, folder+filename)
 def load_df(filename) -> pd.DataFrame:
     return feather.read_feather(folder+filename)
+
 # save_df(player_attrs, 'pattrs.feather')
 # load_df('pattrs.feather')
+
+## Altair
+
+def alt_corr_plot(df: pd.DataFrame, *, corr_limit=0, box_size=100, annot_size=30) -> alt.Chart:
+    corrMatrix = df.corr()\
+    .reset_index()\
+    .melt('index')
+    
+    corrMatrix.columns = ['var1', 'var2', 'correlation']
+    corrMatrix = corrMatrix[corrMatrix['correlation'].abs() >= abs(corr_limit)]
+    
+    base = alt.Chart(corrMatrix).transform_filter(
+        alt.datum.var1 < alt.datum.var2
+    ).encode(
+        x=alt.X('var1',title=''),
+        y=alt.Y('var2',title=''),
+    ).properties(
+        width=alt.Step(box_size),
+        height=alt.Step(box_size)
+    )
+
+    rects = base.mark_rect().encode(
+        color='correlation'
+    )
+    
+    corr_range = (corrMatrix['correlation'].max().item() + corrMatrix['correlation'].min().item())/2
+    text_condition = f"datum.correlation > {corr_range}"
+    text = base.mark_text(
+        size=annot_size
+    ).encode(
+        text=alt.Text('correlation', format=".2f"),
+        color=alt.condition(
+            text_condition,
+            alt.value('white'),
+            alt.value('black')
+        )
+    )
+    
+    return rects + text
